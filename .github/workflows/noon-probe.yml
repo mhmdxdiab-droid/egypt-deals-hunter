@@ -1,4 +1,4 @@
-name: Noon source access probe
+name: Noon and Jumia source access probe
 on:
   push:
     paths: ['.github/workflows/noon-probe.yml']
@@ -8,27 +8,36 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Check public catalog from this runner
+      - name: Test official public catalogs
         shell: python
         run: |
-          import urllib.request, urllib.robotparser, time, re
-          base='https://www.noon.com'
+          import urllib.request, urllib.robotparser, time, concurrent.futures, json
           ua='EgyptSmartDealsHunter/0.7 (public catalog compatibility test)'
-          url=base+'/egypt-en/electronics-and-mobiles/mobiles-and-accessories/mobiles-20905/smartphones/'
-          def read(u):
-              with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':ua}),timeout=25) as r:
-                  b=r.read(4000001)
-                  if len(b)>4000000: raise RuntimeError('Oversized response')
-                  return b.decode()
-          robots=read(base+'/robots.txt')
-          if 'user-agent:' not in robots.lower(): raise RuntimeError('Invalid robots')
-          rules=urllib.robotparser.RobotFileParser(); rules.parse(robots.splitlines())
-          if not rules.can_fetch(ua,url): raise RuntimeError('robots disallows source')
-          time.sleep(20)
-          html=read(url)
-          if any(x in html.lower() for x in ['cf-chl-','challenge-platform','verify you are human']): raise RuntimeError('Human verification required; stopping')
-          count=html.count('data-qa="plp-product-box-name"')
-          print('Noon public catalog cards:',count)
-          if not count: raise RuntimeError('No visible product cards; source not verified')
+          sources=[('Noon','https://www.noon.com','/egypt-en/electronics-and-mobiles/mobiles-and-accessories/mobiles-20905/smartphones/'),('Jumia','https://www.jumia.com.eg','/smartphones/')]
+          def check(item):
+              name,base,path=item
+              def read(u):
+                  with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':ua}),timeout=40) as r:
+                      b=r.read(4000001)
+                      if len(b)>4000000: raise RuntimeError('Oversized')
+                      text=b.decode()
+                      if any(x in text.lower() for x in ['cf-chl-','challenge-platform','verify you are human']): raise RuntimeError('Human verification required; stopped')
+                      return text
+              try:
+                  robots=read(base+'/robots.txt')
+                  if 'user-agent:' not in robots.lower(): raise RuntimeError('Invalid robots; stopped')
+                  rules=urllib.robotparser.RobotFileParser();rules.parse(robots.splitlines())
+                  if not rules.can_fetch(ua,base+path):raise RuntimeError('robots disallows catalog')
+                  time.sleep(20)
+                  html=read(base+path)
+                  cards=html.count('data-qa="plp-product-box-name"') if name=='Noon' else html.count('class="prd ')
+                  result={'source':name,'catalog_bytes':len(html.encode()),'cards':cards,'success':cards>0}
+                  print(json.dumps(result),flush=True)
+                  return cards>0
+              except Exception as e:
+                  print(json.dumps({'source':name,'success':False,'error':type(e).__name__,'status':getattr(e,'code',None),'reason':str(e)[:160]}),flush=True)
+                  return False
+          result=list(concurrent.futures.ThreadPoolExecutor(2).map(check,sources))
+          if not any(result):raise RuntimeError('No source has passed cloud access verification')
