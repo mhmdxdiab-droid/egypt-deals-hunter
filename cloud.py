@@ -24,6 +24,11 @@ def run():
     DATA.mkdir(exist_ok=True)
     s=Store(DATA/'catalog.sqlite3'); h=HTTP()
     token=os.environ.get('TELEGRAM_BOT_TOKEN'); chat=os.environ.get('TELEGRAM_CHAT_ID')
+    if token:
+        identity=bot(token,'getMe',{})
+        print('Telegram token verified for @'+identity['username'])
+    else: print('Missing repository secret: TELEGRAM_BOT_TOKEN')
+    if not chat or not chat.isdigit(): print('Missing or invalid repository secret: TELEGRAM_CHAT_ID (positive numeric private chat ID)')
     can_notify=bool(token and chat and chat.isdigit())
     print('Telegram: configured' if can_notify else 'Telegram: disabled; collecting real prices only')
     summary=['# نتيجة فحص الأسعار', '', 'آخر فحص: '+datetime.now(CAIRO).isoformat(), '', 'تنبيهات تليجرام: '+('مفعلة' if can_notify else 'غير مربوطة'), '', '| المنتج | المقاس | اللون | السعر EGP | المخزون بحسب الصفحة |', '|---|---|---|---:|---:|']
