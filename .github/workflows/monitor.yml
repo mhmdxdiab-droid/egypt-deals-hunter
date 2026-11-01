@@ -1,10 +1,5 @@
-name: Egyptian electronics price monitor
+name: Source compatibility diagnostic (manual only)
 on:
-  push:
-    branches: [main]
-    paths: ['btech.py', 'market.py', 'direct.py', 'tests/**', '.github/workflows/monitor.yml']
-  schedule:
-    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
