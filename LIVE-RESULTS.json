@@ -1,0 +1,35 @@
+{
+  "checked_at_utc": "2026-10-31T15:46:44.998787+00:00",
+  "mode": "live HTTP public merchant HTML",
+  "manual_product_urls_required": false,
+  "statistics": {
+    "source": "Mobaco public HTML",
+    "discovered_candidate_pages": 394,
+    "category_urls": 79,
+    "product_pages_verified": 2,
+    "variant_skus": 8,
+    "last_observation_in_stock": 8,
+    "unknown_stock": 0,
+    "observations": 8,
+    "failed_pages": 0
+  },
+  "robots_url": "https://mobaco.com/robots.txt",
+  "sitemap_url": "https://mobaco.com/en-sitemap.xml",
+  "captcha_bypass_used": false,
+  "aggregator_or_channel_used": false,
+  "telegram_delivery_tested": false,
+  "android_tested": false,
+  "continuous_24h_tested": false,
+  "checked_products": [
+    {
+      "parent_sku": "MS770018-0",
+      "title": "Ankle Socks",
+      "url": "https://mobaco.com/en/ankle-socks-ms770018-0"
+    },
+    {
+      "parent_sku": "MS750010-0",
+      "title": "Bob Hat",
+      "url": "https://mobaco.com/en/bob-hat-ms750010-0"
+    }
+  ]
+}
