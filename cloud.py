@@ -1,4 +1,6 @@
-"""Bounded two-product cloud pilot; no AI requests. Secrets never enter SQLite."""
+"""Bounded two-product cloud pilot; no AI requests. Secrets never enter SQLite.
+Connection verification run after recipient setup.
+"""
 import os, time, json
 from direct import Store, HTTP, parse_page, bot, DATA, CAIRO
 from datetime import datetime
