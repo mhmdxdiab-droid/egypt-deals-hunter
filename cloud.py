@@ -8,6 +8,18 @@ def drops(previous, current):
     return [v for v in current if v.sku in previous and v.stock is not None and v.stock>0 and v.price<previous[v.sku]]
 
 
+def probe(store, token, chat):
+    if store.db.execute("SELECT 1 FROM state WHERE k='telegram_probe_v1'").fetchone(): return
+    # Reserve before network request: never blindly resend an uncertain test.
+    with store.db: store.db.execute("INSERT INTO state(k,v) VALUES('telegram_probe_v1','sending')")
+    try:
+        bot(token,'sendMessage',{'chat_id':chat,'text':'✅ اختبار اتصال صياد اللقط\nدي رسالة اختبار، مش عرض ولا انخفاض سعر.\nالبرنامج شغال على GitHub، ومش محتاج موبايلك يفضل مفتوح ولا بيستخدم ChatGPT أثناء المتابعة.'})
+    except Exception:
+        with store.db: store.db.execute("UPDATE state SET v='uncertain' WHERE k='telegram_probe_v1'")
+        raise RuntimeError('Telegram test failed or delivery uncertain; check secrets and press Start in your bot. No automatic test resend.') from None
+    with store.db: store.db.execute("UPDATE state SET v='sent' WHERE k='telegram_probe_v1'")
+    print('Telegram connection test: sent')
+
 def run():
     DATA.mkdir(exist_ok=True)
     s=Store(DATA/'catalog.sqlite3'); h=HTTP()
@@ -15,6 +27,7 @@ def run():
     can_notify=bool(token and chat and chat.isdigit())
     print('Telegram: configured' if can_notify else 'Telegram: disabled; collecting real prices only')
     summary=['# نتيجة فحص الأسعار', '', 'آخر فحص: '+datetime.now(CAIRO).isoformat(), '', 'تنبيهات تليجرام: '+('مفعلة' if can_notify else 'غير مربوطة'), '', '| المنتج | المقاس | اللون | السعر EGP | المخزون بحسب الصفحة |', '|---|---|---|---:|---:|']
+    if can_notify: probe(s,token,chat)
     s.discover(h)
     # Persist the two automatically discovered jacket URLs, so subsequent runs revisit them.
     saved=s.db.execute("SELECT v FROM state WHERE k='cloud_pilot_urls'").fetchone()
