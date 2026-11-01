@@ -45,10 +45,10 @@ def products(html):
 class Source:
  def __init__(self):self.last=0;self.rules=None
  def raw(self,u):
-  if urllib.parse.urlsplit(u).netloc!='2b.com.eg':raise ValueError('Outside source')
+  if urllib.parse.urlsplit(u).netloc!=urllib.parse.urlsplit(BASE).netloc:raise ValueError('Outside source')
   time.sleep(max(0,20-(time.monotonic()-self.last)));self.last=time.monotonic()
   with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':UA}),timeout=30) as r:
-   if urllib.parse.urlsplit(r.url).netloc!='2b.com.eg':raise ValueError('Unexpected redirect')
+   if urllib.parse.urlsplit(r.url).netloc!=urllib.parse.urlsplit(BASE).netloc:raise ValueError('Unexpected redirect')
    b=r.read(4_000_001)
    if len(b)>4_000_000:raise ValueError('Oversized')
    s=b.decode()
