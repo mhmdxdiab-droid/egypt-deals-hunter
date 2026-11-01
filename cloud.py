@@ -22,6 +22,16 @@ def probe(store, token, chat):
     with store.db: store.db.execute("UPDATE state SET v='sent' WHERE k='telegram_probe_v1'")
     print('Telegram connection test: sent')
 
+def select_urls(store):
+    # Share capacity between revisiting known pages and discovering new products.
+    known=[r[0] for r in store.db.execute("SELECT url FROM pages WHERE active=1 AND last_ok IS NOT NULL AND next_check<=? ORDER BY last_ok,url LIMIT 6",(time.time(),))]
+    fresh=[r[0] for r in store.db.execute("SELECT url FROM pages WHERE active=1 AND last_ok IS NULL AND next_check<=? ORDER BY CASE WHEN url LIKE '%jacket%' OR url LIKE '%polo%' OR url LIKE '%sweat%' THEN 0 ELSE 1 END,url LIMIT ?",(time.time(),12-len(known)))]
+    urls=known+fresh
+    if len(urls)<12:
+        more=[r[0] for r in store.db.execute("SELECT url FROM pages WHERE active=1 AND last_ok IS NOT NULL AND next_check<=? ORDER BY last_ok,url",(time.time(),)) if r[0] not in urls]
+        urls+=more[:12-len(urls)]
+    return urls
+
 def run():
     DATA.mkdir(exist_ok=True)
     s=Store(DATA/'catalog.sqlite3'); h=HTTP()
@@ -36,21 +46,26 @@ def run():
     summary=['# نتيجة فحص الأسعار', '', 'آخر فحص: '+datetime.now(CAIRO).isoformat(), '', 'تنبيهات تليجرام: '+('مفعلة' if can_notify else 'غير مربوطة'), '', '| المنتج | المقاس | اللون | السعر EGP | المخزون بحسب الصفحة |', '|---|---|---|---:|---:|']
     if can_notify: probe(s,token,chat)
     s.discover(h)
-    # Persist the two automatically discovered jacket URLs, so subsequent runs revisit them.
-    saved=s.db.execute("SELECT v FROM state WHERE k='cloud_pilot_urls'").fetchone()
-    if saved: urls=json.loads(saved[0])
-    else:
-        urls=[r[0] for r in s.db.execute("SELECT url FROM pages WHERE url LIKE '%jacket%' AND active=1 ORDER BY url LIMIT 2")]
-        if not urls:raise RuntimeError('No jacket URLs discovered; no manual or fictional substitute')
-        with s.db:s.db.execute("INSERT INTO state(k,v) VALUES('cloud_pilot_urls',?)",(json.dumps(urls),))
+    urls=select_urls(s)
+    print('Batch pages:',len(urls))
+    sent_this_run=0
     for url in urls:
         previous={r['sku']:r['current_price'] for r in s.db.execute('SELECT sku,current_price FROM variants WHERE url=? AND active=1',(url,))}
-        current=parse_page(h.get(url),url); s.ingest(url,current)
+        try:
+            current=parse_page(h.get(url),url); s.ingest(url,current)
+        except PermissionError: raise
+        except Exception as exc:
+            import urllib.error
+            with s.db:
+                s.db.execute("UPDATE pages SET error=?,failures=failures+1,next_check=? WHERE url=?",(type(exc).__name__,time.time()+3600,url))
+            if isinstance(exc,urllib.error.HTTPError) and exc.code in (401,403,429):raise
+            print('Page failed:',url,type(exc).__name__)
+            continue
         candidates=drops(previous,current)
         for v in current:
             clean=lambda x:str(x).replace("|","/").replace("\n"," ")
             summary.append(f"| [{clean(v.title)}]({url}) | {clean(v.size)} | {clean(v.color)} | {v.price/100:.2f} | {v.stock if v.stock is not None else 'غير معروف'} |")
-        if candidates and can_notify:
+        if candidates and can_notify and sent_this_run<5:
             checked=parse_page(h.get(url),url); s.ingest(url,checked)
             valid={v.sku:v for v in checked}
             # One message per parent product per run, listing the exact variant.
@@ -70,9 +85,12 @@ def run():
                 except Exception: status='uncertain'
                 with s.db:s.db.execute('UPDATE notifications SET status=? WHERE id=?',(status,nid))
                 print('Notification status:',status)
+                sent_this_run+=1
                 break
         print(json.dumps({'url':url,'variants':len(current),'price_drops':len(candidates)},ensure_ascii=False))
-    print(json.dumps(s.stats()))
+    stats=s.stats()
+    print(json.dumps(stats))
+    summary+=['',f"روابط مرشحة: {stats['discovered_candidate_pages']} | صفحات فُحصت فعليًا: {stats['product_pages_verified']} | نسخ: {stats['variant_skus']}", 'دفعة بحد أقصى12 صفحة، كل ساعة؛ ليست مراقبة لحظية لكل المنتجات. إعادة زيارة الصفحة بعد6 ساعات على الأقل وبحسب طول الطابور. التنبيهات لانخفاض السعر فقط، بحد5 رسائل للدورة.']
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:f.write("\n".join(summary)+"\n")
 

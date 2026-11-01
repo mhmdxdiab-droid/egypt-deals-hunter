@@ -1,11 +1,11 @@
-name: Two-jacket price pilot
+name: Egypt price discovery
 on:
   push:
     branches: [main]
     paths: ['cloud.py', 'direct.py', 'tests/**', '.github/workflows/monitor.yml']
   workflow_dispatch:
   schedule:
-    - cron: '23 */6 * * *'
+    - cron: '23 * * * *'
 permissions:
   contents: write
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,7 +22,7 @@ jobs:
           python-version: '3.12'
       - name: Test rules
         run: python -m unittest discover -s tests -v
-      - name: Poll two discovered jackets
+      - name: Discover and poll up to twelve product pages
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
